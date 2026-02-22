@@ -1,0 +1,210 @@
+@import "tailwindcss";
+
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+
+:root {
+  --color-bg: #000000;
+  --color-phosphor-green: #00ff41;
+  --color-phosphor-dim: #008f11;
+  --color-phosphor-orange: #ff9900;
+  --color-phosphor-red: #ff3300;
+  --font-main: 'JetBrains Mono', monospace;
+  --crt-flicker: flicker 0.15s infinite;
+  --scanline-speed: 8s;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-phosphor-green);
+  font-family: var(--font-main);
+  overflow: hidden;
+  height: 100dvh;
+  width: 100vw;
+  position: fixed;
+  top: 0;
+  left: 0;
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+/* CRT Scanline Effect */
+.crt-overlay::before {
+  content: " ";
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+  z-index: 100;
+  background-size: 100% 4px, 3px 100%;
+  pointer-events: none;
+}
+
+.crt-overlay::after {
+  content: " ";
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  background: rgba(18, 16, 16, 0.1);
+  opacity: 0;
+  z-index: 100;
+  pointer-events: none;
+  animation: var(--crt-flicker);
+}
+
+@keyframes flicker {
+  0% {
+    opacity: 0.27861;
+  }
+
+  5% {
+    opacity: 0.34769;
+  }
+
+  10% {
+    opacity: 0.23604;
+  }
+
+  15% {
+    opacity: 0.90626;
+  }
+
+  20% {
+    opacity: 0.18128;
+  }
+
+  25% {
+    opacity: 0.83891;
+  }
+
+  30% {
+    opacity: 0.65583;
+  }
+
+  35% {
+    opacity: 0.57807;
+  }
+
+  40% {
+    opacity: 0.26593;
+  }
+
+  45% {
+    opacity: 0.84623;
+  }
+
+  50% {
+    opacity: 0.96019;
+  }
+
+  55% {
+    opacity: 0.08523;
+  }
+
+  60% {
+    opacity: 0.71056;
+  }
+
+  65% {
+    opacity: 0.73477;
+  }
+
+  70% {
+    opacity: 0.85823;
+  }
+
+  75% {
+    opacity: 0.30159;
+  }
+
+  80% {
+    opacity: 0.98034;
+  }
+
+  85% {
+    opacity: 0.47518;
+  }
+
+  90% {
+    opacity: 0.2561;
+  }
+
+  95% {
+    opacity: 0.9469;
+  }
+
+  100% {
+    opacity: 0.30312;
+  }
+}
+
+.screen-grid {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image:
+    linear-gradient(var(--color-phosphor-dim) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-phosphor-dim) 1px, transparent 1px);
+  background-size: 40px 40px;
+  background-position: center;
+  opacity: 0.1;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Typography & Glow */
+.glow-text {
+  text-shadow: 0 0 10px var(--color-phosphor-green), 0 0 20px var(--color-phosphor-dim);
+}
+
+.don-panic {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+/* UI Elements */
+button {
+  background: transparent;
+  border: 2px solid var(--color-phosphor-green);
+  color: var(--color-phosphor-green);
+  padding: 1rem 2rem;
+  font-family: var(--font-main);
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-transform: uppercase;
+  position: relative;
+  overflow: hidden;
+}
+
+button:active {
+  background: var(--color-phosphor-green);
+  color: var(--color-bg);
+  box-shadow: 0 0 20px var(--color-phosphor-green);
+}
+
+.vector-line {
+  stroke: var(--color-phosphor-green);
+  stroke-width: 2;
+  fill: none;
+  filter: drop-shadow(0 0 5px var(--color-phosphor-green));
+}
