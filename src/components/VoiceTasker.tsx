@@ -6,6 +6,7 @@ import { Wavelength } from './Wavelength';
 import { ReviewScreen } from './ReviewScreen';
 import { ResultScreen } from './ResultScreen';
 import { LockScreen } from './LockScreen';
+import { TextEntryScreen } from './TextEntryScreen';
 import { AudioRecorder } from '../lib/audioRecorder';
 import { transcribeAudio } from '../lib/openai';
 import { createTickTickTask } from '../lib/ticktick';
@@ -19,7 +20,7 @@ interface AppSettings {
     taskType: string;
 }
 
-type ScreenState = 'LOCKED' | 'INITIAL' | 'RECORDING' | 'PROCESSING' | 'REVIEW' | 'RESULT' | 'SETTINGS';
+type ScreenState = 'LOCKED' | 'INITIAL' | 'RECORDING' | 'PROCESSING' | 'REVIEW' | 'RESULT' | 'SETTINGS' | 'TEXT_ENTRY';
 
 export const VoiceTasker: React.FC = () => {
     const [screen, setScreen] = useState<ScreenState>('LOCKED');
@@ -108,6 +109,7 @@ export const VoiceTasker: React.FC = () => {
                 return (
                     <StartScreen
                         onStart={handleStartRecording}
+                        onTextEntry={() => navigateTo('TEXT_ENTRY')}
                         onOpenSettings={() => navigateTo('SETTINGS')}
                     />
                 );
@@ -159,6 +161,16 @@ export const VoiceTasker: React.FC = () => {
                             setError(null);
                             navigateTo('INITIAL');
                         }}
+                    />
+                );
+            case 'TEXT_ENTRY':
+                return (
+                    <TextEntryScreen
+                        onSubmit={(text) => {
+                            setTranspiredText(text);
+                            navigateTo('REVIEW');
+                        }}
+                        onCancel={() => navigateTo('INITIAL')}
                     />
                 );
             case 'SETTINGS':
