@@ -77,14 +77,14 @@ export const VoiceTasker: React.FC = () => {
         }
     };
 
-    const handleCreateTask = async () => {
+    const handleCreateTask = async (textOverride?: string) => {
         navigateTo('PROCESSING');
         try {
             if (!settings.tickTickToken) {
                 throw new Error('TickTick Token missing in settings');
             }
             await createTickTickTask({
-                title: transpiredText,
+                title: textOverride ?? transpiredText,
                 dueDate: settings.defaultDate === 'Today' ? new Date().toISOString() : undefined,
                 projectId: settings.taskType !== 'Inbox' ? settings.taskType : undefined
             }, settings.tickTickToken);
@@ -168,7 +168,7 @@ export const VoiceTasker: React.FC = () => {
                     <TextEntryScreen
                         onSubmit={(text) => {
                             setTranspiredText(text);
-                            navigateTo('REVIEW');
+                            handleCreateTask(text);
                         }}
                         onCancel={() => navigateTo('INITIAL')}
                     />
