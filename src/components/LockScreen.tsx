@@ -60,7 +60,7 @@ export const LockScreen: React.FC<LockScreenProps> = ({ onUnlock }) => {
             </form>
 
             <div className="mt-16 text-[12px] opacity-40 text-center uppercase max-w-xs tracking-widest leading-relaxed">
-                Consult the chronometer. <br />Enter the logical sequence (HHMM) to bypass the Sirius Cybernetics security sub-routine.
+                v0.11
             </div>
         </div>
     );
