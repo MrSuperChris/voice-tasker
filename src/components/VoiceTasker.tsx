@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CRTOverlay } from './CRTOverlay';
 import { StartScreen } from './StartScreen';
@@ -77,14 +77,31 @@ export const VoiceTasker: React.FC = () => {
         }
     };
 
+    const isSubmittingRef = useRef(false);
+
     const handleCreateTask = async (textOverride?: string) => {
+        if (isSubmittingRef.current) {
+            return;
+        }
+
+        const rawTitle = typeof textOverride === 'string' ? textOverride : transpiredText;
+        const title = rawTitle.trim();
+
+        if (!title) {
+            setError('Cannot create a task with an empty title');
+            setIsSuccess(false);
+            navigateTo('RESULT');
+            return;
+        }
+
+        isSubmittingRef.current = true;
         navigateTo('PROCESSING');
         try {
             if (!settings.tickTickToken) {
                 throw new Error('TickTick Token missing in settings');
             }
             await createTickTickTask({
-                title: textOverride ?? transpiredText,
+                title,
                 dueDate: settings.defaultDate === 'Today' ? new Date().toISOString() : undefined,
                 projectId: settings.taskType !== 'Inbox' ? settings.taskType : undefined
             }, settings.tickTickToken);
@@ -94,6 +111,8 @@ export const VoiceTasker: React.FC = () => {
             setError(err.message || 'Task creation failed');
             setIsSuccess(false);
             navigateTo('RESULT');
+        } finally {
+            isSubmittingRef.current = false;
         }
     };
 

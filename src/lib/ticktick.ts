@@ -6,6 +6,10 @@ export interface TickTickTask {
 }
 
 export async function createTickTickTask(task: TickTickTask, accessToken: string): Promise<void> {
+    if (!task.title || !task.title.trim()) {
+        throw new Error('Cannot create a task with an empty title');
+    }
+
     // Base URL for TickTick Open API v1
     const baseUrl = 'https://api.ticktick.com/open/v1';
 
