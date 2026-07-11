@@ -3,12 +3,12 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { CRTOverlay } from './CRTOverlay';
 import { StartScreen } from './StartScreen';
 import { Wavelength } from './Wavelength';
-import { ReviewScreen } from './ReviewScreen';
+import { ReviewScreen, type ReviewSubmitOptions } from './ReviewScreen';
 import { ResultScreen } from './ResultScreen';
-import { LockScreen } from './LockScreen';
 import { AudioRecorder } from '../lib/audioRecorder';
 import { transcribeAudio } from '../lib/openai';
 import { createTickTickTask } from '../lib/ticktick';
+import { sounds } from '../lib/sounds';
 
 const recorder = new AudioRecorder();
 
@@ -19,10 +19,10 @@ interface AppSettings {
     taskType: string;
 }
 
-type ScreenState = 'LOCKED' | 'INITIAL' | 'RECORDING' | 'PROCESSING' | 'REVIEW' | 'RESULT' | 'SETTINGS';
+type ScreenState = 'INITIAL' | 'RECORDING' | 'PROCESSING' | 'REVIEW' | 'RESULT' | 'SETTINGS' | 'TEXT_ENTRY';
 
 export const VoiceTasker: React.FC = () => {
-    const [screen, setScreen] = useState<ScreenState>('LOCKED');
+    const [screen, setScreen] = useState<ScreenState>('INITIAL');
     const [transpiredText, setTranspiredText] = useState('');
     const [isSuccess, setIsSuccess] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -36,10 +36,6 @@ export const VoiceTasker: React.FC = () => {
         };
     });
 
-    const handleUnlock = () => {
-        navigateTo('INITIAL');
-    };
-
     const saveSettings = (newSettings: AppSettings) => {
         setSettings(newSettings);
         localStorage.setItem('voice-tasker-settings', JSON.stringify(newSettings));
@@ -52,6 +48,7 @@ export const VoiceTasker: React.FC = () => {
     const handleStartRecording = async () => {
         try {
             await recorder.start();
+            sounds.playStartRecording();
             navigateTo('RECORDING');
         } catch (err) {
             console.error(err);
@@ -60,36 +57,71 @@ export const VoiceTasker: React.FC = () => {
     };
 
     const handleStopRecording = async () => {
+        sounds.playStopRecording();
         navigateTo('PROCESSING');
+        sounds.startProcessing();
         try {
             const audioBlob = await recorder.stop();
             if (!settings.openaiKey) {
                 throw new Error('OpenAI Key missing in settings');
             }
             const text = await transcribeAudio(audioBlob, settings.openaiKey);
+            if (!text.trim()) {
+                throw new Error('Nothing was captured. Try again.');
+            }
             setTranspiredText(text);
+            sounds.stopProcessing();
             navigateTo('REVIEW');
         } catch (err: any) {
+            sounds.stopProcessing();
+            sounds.playError();
             setError(err.message || 'Transcription failed');
             setIsSuccess(false);
             navigateTo('RESULT');
         }
     };
 
-    const handleCreateTask = async () => {
+    const computeDueDate = (dateOption?: string): string | undefined => {
+        if (dateOption === 'Tomorrow') {
+            const t = new Date();
+            t.setDate(t.getDate() + 1);
+            return t.toISOString();
+        }
+        if (dateOption === 'Today') {
+            return new Date().toISOString();
+        }
+        // 'Someday' / heat death of the universe => no due date
+        return undefined;
+    };
+
+    const handleCreateTask = async (options?: ReviewSubmitOptions) => {
+        if (!transpiredText.trim()) {
+            sounds.playError();
+            setError('Cannot create an empty task.');
+            setIsSuccess(false);
+            navigateTo('RESULT');
+            return;
+        }
         navigateTo('PROCESSING');
+        sounds.startProcessing();
         try {
             if (!settings.tickTickToken) {
                 throw new Error('TickTick Token missing in settings');
             }
+            const title = transpiredText.trim();
             await createTickTickTask({
-                title: transpiredText,
-                dueDate: settings.defaultDate === 'Today' ? new Date().toISOString() : undefined,
-                projectId: settings.taskType !== 'Inbox' ? settings.taskType : undefined
+                title,
+                dueDate: computeDueDate(options?.dateOption ?? settings.defaultDate),
+                projectId: settings.taskType !== 'Inbox' ? settings.taskType : undefined,
+                tags: options?.tag ? [options.tag] : undefined
             }, settings.tickTickToken);
             setIsSuccess(true);
+            sounds.stopProcessing();
+            sounds.playSuccess();
             navigateTo('RESULT');
         } catch (err: any) {
+            sounds.stopProcessing();
+            sounds.playError();
             setError(err.message || 'Task creation failed');
             setIsSuccess(false);
             navigateTo('RESULT');
@@ -98,17 +130,12 @@ export const VoiceTasker: React.FC = () => {
 
     const renderScreen = () => {
         switch (screen) {
-            case 'LOCKED':
-                return (
-                    <LockScreen
-                        onUnlock={handleUnlock}
-                    />
-                );
             case 'INITIAL':
                 return (
                     <StartScreen
                         onStart={handleStartRecording}
                         onOpenSettings={() => navigateTo('SETTINGS')}
+                        onTextEntry={() => navigateTo('TEXT_ENTRY')}
                     />
                 );
             case 'RECORDING':
@@ -161,18 +188,32 @@ export const VoiceTasker: React.FC = () => {
                         }}
                     />
                 );
+            case 'TEXT_ENTRY':
+                return (
+                    <ReviewScreen
+                        title="TYPE TASK"
+                        autoFocus
+                        text={transpiredText}
+                        onTextChange={setTranspiredText}
+                        onDo={handleCreateTask}
+                        onDont={() => {
+                            setTranspiredText('');
+                            navigateTo('INITIAL');
+                        }}
+                    />
+                );
             case 'SETTINGS':
                 return (
                     <div className="flex flex-col h-full p-6 max-w-md mx-auto overflow-y-auto">
                         <h2 className="don-panic glow-text text-3xl mb-8 mt-4 text-center">CONFIG</h2>
                         <div className="w-full space-y-4">
                             <div>
-                                <label className="block text-xs uppercase mb-1">OpenAI Key</label>
+                                <label className="block text-xs uppercase mb-1">Groq API Key</label>
                                 <input
                                     type="password"
                                     value={settings.openaiKey}
                                     onChange={(e) => setSettings({ ...settings, openaiKey: e.target.value })}
-                                    placeholder="sk-..."
+                                    placeholder="gsk_..."
                                     className="w-full bg-black border border-[var(--color-phosphor-green)] p-2 text-green-500 font-mono focus:outline-none"
                                 />
                             </div>

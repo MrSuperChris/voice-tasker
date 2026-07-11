@@ -1,18 +1,19 @@
 import React from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, Keyboard } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface StartScreenProps {
     onStart: () => void;
     onOpenSettings: () => void;
+    onTextEntry: () => void;
 }
 
-export const StartScreen: React.FC<StartScreenProps> = ({ onStart, onOpenSettings }) => {
+export const StartScreen: React.FC<StartScreenProps> = ({ onStart, onOpenSettings, onTextEntry }) => {
     return (
         <div className="h-full w-full flex flex-col items-center p-8 box-border relative overflow-hidden bg-black">
             {/* Header */}
             <div className="text-center w-full mt-8 pointer-events-none">
-                <h1 className="don-panic glow-text text-5xl mb-2">Voice Tasker</h1>
+                <h1 className="don-panic glow-text text-5xl mb-2">Babel</h1>
                 <p className="glow-text text-xs opacity-50 tracking-[0.4em] uppercase">Galaxy Guide Protocol</p>
             </div>
 
@@ -34,13 +35,22 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, onOpenSetting
                     DON'T PANIC
                 </p>
 
-                <button
-                    onClick={onOpenSettings}
-                    className="p-4 border border-[var(--color-phosphor-dim)] rounded text-2xl opacity-30 hover:opacity-100 transition-opacity flex items-center justify-center min-w-[60px]"
-                    title="Settings"
-                >
-                    ⚒️
-                </button>
+                <div className="flex gap-4">
+                    <button
+                        onClick={onTextEntry}
+                        className="p-4 border border-[var(--color-phosphor-dim)] rounded opacity-30 hover:opacity-100 transition-opacity flex items-center justify-center min-w-[60px]"
+                        title="Type a task"
+                    >
+                        <Keyboard size={24} className="text-[var(--color-phosphor-green)]" />
+                    </button>
+                    <button
+                        onClick={onOpenSettings}
+                        className="p-4 border border-[var(--color-phosphor-dim)] rounded text-2xl opacity-30 hover:opacity-100 transition-opacity flex items-center justify-center min-w-[60px]"
+                        title="Settings"
+                    >
+                        ⚒️
+                    </button>
+                </div>
             </div>
         </div>
     );

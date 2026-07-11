@@ -13,11 +13,13 @@
   --scanline-speed: 8s;
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-  -webkit-tap-highlight-color: transparent;
+@layer base {
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    -webkit-tap-highlight-color: transparent;
+  }
 }
 
 body {
@@ -182,24 +184,26 @@ body {
 }
 
 /* UI Elements */
-button {
-  background: transparent;
-  border: 2px solid var(--color-phosphor-green);
-  color: var(--color-phosphor-green);
-  padding: 1rem 2rem;
-  font-family: var(--font-main);
-  font-size: 1.2rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  text-transform: uppercase;
-  position: relative;
-  overflow: hidden;
-}
+@layer base {
+  button {
+    background: transparent;
+    border: 2px solid var(--color-phosphor-green);
+    color: var(--color-phosphor-green);
+    padding: 1rem 2rem;
+    font-family: var(--font-main);
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-transform: uppercase;
+    position: relative;
+    overflow: hidden;
+  }
 
-button:active {
-  background: var(--color-phosphor-green);
-  color: var(--color-bg);
-  box-shadow: 0 0 20px var(--color-phosphor-green);
+  button:active {
+    background: var(--color-phosphor-green);
+    color: var(--color-bg);
+    box-shadow: 0 0 20px var(--color-phosphor-green);
+  }
 }
 
 .vector-line {
