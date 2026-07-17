@@ -3,6 +3,7 @@ export interface TickTickTask {
     content?: string;
     projectId?: string;
     dueDate?: string; // ISO 8601
+    tags?: string[];
 }
 
 export async function createTickTickTask(task: TickTickTask, accessToken: string): Promise<void> {

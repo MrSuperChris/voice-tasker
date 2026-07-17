@@ -15,7 +15,8 @@ export class AudioRecorder {
         this.source = this.audioContext.createMediaStreamSource(stream);
         this.source.connect(this.analyser);
 
-        this.mediaRecorder = new MediaRecorder(stream);
+        const mimeType = ['audio/webm', 'audio/mp4', 'audio/ogg'].find(t => MediaRecorder.isTypeSupported(t)) ?? '';
+        this.mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
         this.audioChunks = [];
 
         this.mediaRecorder.ondataavailable = (event) => {
@@ -37,7 +38,8 @@ export class AudioRecorder {
             }
 
             this.mediaRecorder.onstop = () => {
-                const audioBlob = new Blob(this.audioChunks, { type: 'audio/webm' });
+                const mimeType = this.mediaRecorder?.mimeType || 'audio/webm';
+                const audioBlob = new Blob(this.audioChunks, { type: mimeType });
                 resolve(audioBlob);
 
                 // Stop all tracks to release the microphone

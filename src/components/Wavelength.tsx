@@ -39,32 +39,26 @@ export const Wavelength: React.FC<WavelengthProps> = ({ analyser }) => {
             }
             ctx.stroke();
 
-            // Frequency visualization
+            // Frequency bar visualization
             if (analyser) {
-                analyser.getByteTimeDomainData(dataArray);
+                analyser.getByteFrequencyData(dataArray);
             }
 
-            ctx.beginPath();
-            ctx.strokeStyle = phosphorGreen;
-            ctx.lineWidth = 3;
+            const barCount = 48;
+            const barWidth = (width / barCount) * 0.7;
+            const gap = (width / barCount) * 0.3;
 
-            const sliceWidth = width / dataArray.length;
-            let x = 0;
+            for (let i = 0; i < barCount; i++) {
+                const value = dataArray[Math.floor(i * dataArray.length / barCount)] / 255;
+                const barHeight = Math.max(4, value * height * 0.85);
+                const x = i * (barWidth + gap);
+                const y = (height - barHeight) / 2;
 
-            for (let i = 0; i < dataArray.length; i++) {
-                const v = dataArray[i] / 128.0;
-                const y = v * (height / 2);
-
-                if (i === 0) {
-                    ctx.moveTo(x, y);
-                } else {
-                    ctx.lineTo(x, y);
-                }
-                x += sliceWidth;
+                const alpha = 0.4 + value * 0.6;
+                ctx.fillStyle = `rgba(0, 255, 65, ${alpha})`;
+                ctx.shadowBlur = value > 0.3 ? 12 : 4;
+                ctx.fillRect(x, y, barWidth, barHeight);
             }
-
-            ctx.lineTo(width, height / 2);
-            ctx.stroke();
 
             animationId = requestAnimationFrame(render);
         };

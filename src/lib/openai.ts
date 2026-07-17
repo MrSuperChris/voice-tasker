@@ -1,9 +1,10 @@
 export async function transcribeAudio(audioBlob: Blob, apiKey: string): Promise<string> {
     const formData = new FormData();
-    formData.append('file', audioBlob, 'audio.webm');
-    formData.append('model', 'whisper-1');
+    const ext = audioBlob.type.includes('mp4') ? 'mp4' : audioBlob.type.includes('ogg') ? 'ogg' : 'webm';
+    formData.append('file', audioBlob, `audio.${ext}`);
+    formData.append('model', 'whisper-large-v3-turbo');
 
-    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+    const response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
         method: 'POST',
         headers: {
             'Authorization': `Bearer ${apiKey}`
