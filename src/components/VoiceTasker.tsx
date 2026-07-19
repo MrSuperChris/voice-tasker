@@ -6,13 +6,16 @@ import { Wavelength } from './Wavelength';
 import { ReviewScreen, type ReviewSubmitOptions } from './ReviewScreen';
 import { ResultScreen } from './ResultScreen';
 import { AudioRecorder } from '../lib/audioRecorder';
-import { transcribeAudio } from '../lib/openai';
+import { transcribeAudio } from '../lib/groq';
 import { createTickTickTask } from '../lib/ticktick';
 import { sounds } from '../lib/sounds';
 
 const recorder = new AudioRecorder();
 
 interface AppSettings {
+    // Historical field name: holds the GROQ key (gsk_...) - transcription
+    // moved to Groq's Whisper endpoint long ago. Renaming the stored field
+    // would need a localStorage migration on every device; not worth it.
     openaiKey: string;
     tickTickToken: string;
     defaultDate: string;
@@ -63,7 +66,7 @@ export const VoiceTasker: React.FC = () => {
         try {
             const audioBlob = await recorder.stop();
             if (!settings.openaiKey) {
-                throw new Error('OpenAI Key missing in settings');
+                throw new Error('Groq API Key missing in settings');
             }
             const text = await transcribeAudio(audioBlob, settings.openaiKey);
             if (!text.trim()) {
