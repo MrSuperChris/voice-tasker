@@ -23,7 +23,7 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, onOpenSetting
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={onStart}
-                    className="w-full aspect-square max-w-[90vw] flex items-center justify-center border-8 border-[var(--color-phosphor-green)] bg-transparent rounded-3xl shadow-[0_0_50px_rgba(0,255,65,0.2)]"
+                    className="aspect-square w-[max(180px,min(85vw,100vh_-_380px))] flex items-center justify-center border-8 border-[var(--color-phosphor-green)] bg-transparent rounded-3xl shadow-[0_0_50px_rgba(0,255,65,0.2)]"
                 >
                     <Plus size={200} strokeWidth={0.5} className="text-[var(--color-phosphor-green)]" />
                 </motion.button>
