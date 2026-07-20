@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CRTOverlay } from './CRTOverlay';
 import { StartScreen } from './StartScreen';
@@ -97,7 +97,14 @@ export const VoiceTasker: React.FC = () => {
         return undefined;
     };
 
+    // A second DO press in the same tick lands before React has swapped the
+    // screen out, so state alone can't stop a double-tap from POSTing twice.
+    const isSubmittingRef = useRef(false);
+
     const handleCreateTask = async (options?: ReviewSubmitOptions) => {
+        if (isSubmittingRef.current) {
+            return;
+        }
         if (!transpiredText.trim()) {
             sounds.playError();
             setError('Cannot create an empty task.');
@@ -105,6 +112,7 @@ export const VoiceTasker: React.FC = () => {
             navigateTo('RESULT');
             return;
         }
+        isSubmittingRef.current = true;
         navigateTo('PROCESSING');
         sounds.startProcessing();
         try {
@@ -128,6 +136,8 @@ export const VoiceTasker: React.FC = () => {
             setError(err.message || 'Task creation failed');
             setIsSuccess(false);
             navigateTo('RESULT');
+        } finally {
+            isSubmittingRef.current = false;
         }
     };
 
