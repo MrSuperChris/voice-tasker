@@ -7,6 +7,7 @@ import { ReviewScreen, type ReviewSubmitOptions } from './ReviewScreen';
 import { ResultScreen } from './ResultScreen';
 import { AudioRecorder } from '../lib/audioRecorder';
 import { transcribeAudio } from '../lib/groq';
+import { uploadObsidianNote } from '../lib/dropbox';
 import { createTickTickTask } from '../lib/ticktick';
 import { sounds } from '../lib/sounds';
 
@@ -18,9 +19,18 @@ interface AppSettings {
     // would need a localStorage migration on every device; not worth it.
     openaiKey: string;
     tickTickToken: string;
+    dropboxToken: string;
     defaultDate: string;
     taskType: string;
 }
+
+const DEFAULT_SETTINGS: AppSettings = {
+    openaiKey: '',
+    tickTickToken: '',
+    dropboxToken: '',
+    defaultDate: 'Today',
+    taskType: 'Inbox'
+};
 
 type ScreenState = 'INITIAL' | 'RECORDING' | 'PROCESSING' | 'REVIEW' | 'RESULT' | 'SETTINGS' | 'TEXT_ENTRY';
 
@@ -31,12 +41,9 @@ export const VoiceTasker: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [settings, setSettings] = useState<AppSettings>(() => {
         const saved = localStorage.getItem('voice-tasker-settings');
-        return saved ? JSON.parse(saved) : {
-            openaiKey: '',
-            tickTickToken: '',
-            defaultDate: 'Today',
-            taskType: 'Inbox'
-        };
+        // Merge over defaults so settings saved before a new field existed
+        // (e.g. dropboxToken) still yield controlled inputs.
+        return saved ? { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } : DEFAULT_SETTINGS;
     });
 
     const saveSettings = (newSettings: AppSettings) => {
@@ -108,16 +115,27 @@ export const VoiceTasker: React.FC = () => {
         navigateTo('PROCESSING');
         sounds.startProcessing();
         try {
-            if (!settings.tickTickToken) {
-                throw new Error('TickTick Token missing in settings');
-            }
             const title = transpiredText.trim();
-            await createTickTickTask({
-                title,
-                dueDate: computeDueDate(options?.dateOption ?? settings.defaultDate),
-                projectId: settings.taskType !== 'Inbox' ? settings.taskType : undefined,
-                tags: options?.tag ? [options.tag] : undefined
-            }, settings.tickTickToken);
+            const mode = options?.mode ?? 'TASK';
+            if (mode === 'OBSIDIAN') {
+                if (!settings.dropboxToken) {
+                    throw new Error('Dropbox Token missing in settings');
+                }
+                await uploadObsidianNote(title, settings.dropboxToken);
+            } else {
+                if (!settings.tickTickToken) {
+                    throw new Error('TickTick Token missing in settings');
+                }
+                await createTickTickTask({
+                    title,
+                    dueDate: computeDueDate(options?.dateOption ?? settings.defaultDate),
+                    projectId: settings.taskType !== 'Inbox' ? settings.taskType : undefined,
+                    // ASK CLAUDE rides the existing triage pipeline: a
+                    // thinking-tagged Inbox task is already a candidate there.
+                    tags: mode === 'ASK' ? ['thinking']
+                        : options?.tag ? [options.tag] : undefined
+                }, settings.tickTickToken);
+            }
             setIsSuccess(true);
             sounds.stopProcessing();
             sounds.playSuccess();
@@ -227,6 +245,16 @@ export const VoiceTasker: React.FC = () => {
                                     value={settings.tickTickToken}
                                     onChange={(e) => setSettings({ ...settings, tickTickToken: e.target.value })}
                                     placeholder="..."
+                                    className="w-full bg-black border border-[var(--color-phosphor-green)] p-2 text-green-500 font-mono focus:outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs uppercase mb-1">Dropbox Token (Obsidian mode)</label>
+                                <input
+                                    type="password"
+                                    value={settings.dropboxToken}
+                                    onChange={(e) => setSettings({ ...settings, dropboxToken: e.target.value })}
+                                    placeholder="sl.u..."
                                     className="w-full bg-black border border-[var(--color-phosphor-green)] p-2 text-green-500 font-mono focus:outline-none"
                                 />
                             </div>
