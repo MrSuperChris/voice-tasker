@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 
 export type DateOption = 'Today' | 'Tomorrow' | 'Someday';
+export type CaptureMode = 'TASK' | 'OBSIDIAN' | 'ASK';
 
 export interface ReviewSubmitOptions {
     dateOption: DateOption;
     tag: string | null;
+    mode: CaptureMode;
 }
 
 interface ReviewScreenProps {
@@ -24,9 +26,16 @@ const DATE_OPTIONS: { value: DateOption; label: string }[] = [
 
 const TAGS = ['social', 'it', 'home', 'money', 'creative', 'organizing', 'work', 'cooking', 'vacation', 'thinking'];
 
+const MODE_OPTIONS: { value: CaptureMode; label: string }[] = [
+    { value: 'TASK', label: 'TASK' },
+    { value: 'OBSIDIAN', label: 'OBSIDIAN' },
+    { value: 'ASK', label: 'ASK CLAUDE' },
+];
+
 export const ReviewScreen: React.FC<ReviewScreenProps> = ({ text, onTextChange, onDo, onDont, title = 'TRANSCRIPTION', autoFocus = false }) => {
     const [dateOption, setDateOption] = useState<DateOption>('Today');
     const [tag, setTag] = useState<string | null>(null);
+    const [mode, setMode] = useState<CaptureMode>('TASK');
 
     return (
         <div className="flex flex-col h-full w-full p-6 box-border overflow-y-auto">
@@ -41,14 +50,14 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({ text, onTextChange, 
                 rows={4}
             />
 
-            <div className="text-[10px] opacity-50 uppercase tracking-[0.2em] mt-5 mb-2">WHEN</div>
+            <div className="text-[10px] opacity-50 uppercase tracking-[0.2em] mt-5 mb-2">MODE</div>
             <div className="flex border border-[var(--color-phosphor-green)] rounded overflow-hidden">
-                {DATE_OPTIONS.map((opt, i) => (
+                {MODE_OPTIONS.map((opt, i) => (
                     <button
                         key={opt.value}
-                        onClick={() => setDateOption(opt.value)}
+                        onClick={() => setMode(opt.value)}
                         className={`flex-1 text-center py-3 px-1 text-[11px] uppercase tracking-wide whitespace-nowrap ${i > 0 ? 'border-l border-[var(--color-phosphor-green)]' : ''} ${
-                            dateOption === opt.value
+                            mode === opt.value
                                 ? 'bg-[var(--color-phosphor-green)] text-black font-bold'
                                 : 'text-[var(--color-phosphor-green)]'
                         }`}
@@ -58,22 +67,57 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({ text, onTextChange, 
                 ))}
             </div>
 
-            <div className="text-[10px] opacity-50 uppercase tracking-[0.2em] mt-5 mb-2">TAG</div>
-            <div className="grid grid-cols-3 gap-2">
-                {TAGS.map((t) => (
-                    <button
-                        key={t}
-                        onClick={() => setTag(tag === t ? null : t)}
-                        className={`border border-[var(--color-phosphor-green)] rounded py-3 text-[11px] uppercase tracking-wide ${
-                            tag === t
-                                ? 'bg-[var(--color-phosphor-green)] text-black font-bold'
-                                : 'text-[var(--color-phosphor-green)]'
-                        }`}
-                    >
-                        {t}
-                    </button>
-                ))}
-            </div>
+            {mode !== 'OBSIDIAN' && (
+                <>
+                    <div className="text-[10px] opacity-50 uppercase tracking-[0.2em] mt-5 mb-2">WHEN</div>
+                    <div className="flex border border-[var(--color-phosphor-green)] rounded overflow-hidden">
+                        {DATE_OPTIONS.map((opt, i) => (
+                            <button
+                                key={opt.value}
+                                onClick={() => setDateOption(opt.value)}
+                                className={`flex-1 text-center py-3 px-1 text-[11px] uppercase tracking-wide whitespace-nowrap ${i > 0 ? 'border-l border-[var(--color-phosphor-green)]' : ''} ${
+                                    dateOption === opt.value
+                                        ? 'bg-[var(--color-phosphor-green)] text-black font-bold'
+                                        : 'text-[var(--color-phosphor-green)]'
+                                }`}
+                            >
+                                {opt.label}
+                            </button>
+                        ))}
+                    </div>
+                </>
+            )}
+
+            {mode === 'TASK' && (
+                <>
+                    <div className="text-[10px] opacity-50 uppercase tracking-[0.2em] mt-5 mb-2">TAG</div>
+                    <div className="grid grid-cols-3 gap-2">
+                        {TAGS.map((t) => (
+                            <button
+                                key={t}
+                                onClick={() => setTag(tag === t ? null : t)}
+                                className={`border border-[var(--color-phosphor-green)] rounded py-3 text-[11px] uppercase tracking-wide ${
+                                    tag === t
+                                        ? 'bg-[var(--color-phosphor-green)] text-black font-bold'
+                                        : 'text-[var(--color-phosphor-green)]'
+                                }`}
+                            >
+                                {t}
+                            </button>
+                        ))}
+                    </div>
+                </>
+            )}
+            {mode === 'ASK' && (
+                <div className="text-[10px] opacity-50 uppercase tracking-[0.2em] mt-5">
+                    TAGGED: THINKING — the triage routine picks it up from there
+                </div>
+            )}
+            {mode === 'OBSIDIAN' && (
+                <div className="text-[10px] opacity-50 uppercase tracking-[0.2em] mt-5">
+                    WRITES A NOTE TO OBSIDIAN/IDEAS
+                </div>
+            )}
 
             <div className="grid grid-cols-2 gap-6 mt-6 mb-4">
                 <button
@@ -83,7 +127,7 @@ export const ReviewScreen: React.FC<ReviewScreenProps> = ({ text, onTextChange, 
                     DON'T
                 </button>
                 <button
-                    onClick={() => onDo({ dateOption, tag })}
+                    onClick={() => onDo({ dateOption, tag, mode })}
                     disabled={!text.trim()}
                     className="don-panic border-4 border-[var(--color-phosphor-green)] text-[var(--color-phosphor-green)] py-5 text-xl font-bold uppercase transition-all active:bg-[var(--color-phosphor-green)] active:text-black disabled:opacity-30"
                 >
