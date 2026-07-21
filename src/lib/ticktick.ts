@@ -7,6 +7,13 @@ export interface TickTickTask {
 }
 
 export async function createTickTickTask(task: TickTickTask, accessToken: string): Promise<void> {
+    // Last line of defence: a blank title must never reach the API, no matter
+    // which caller got there. Empty tasks are unfixable noise in the Inbox.
+    const title = task.title?.trim();
+    if (!title) {
+        throw new Error('Cannot create an empty task.');
+    }
+
     // Base URL for TickTick Open API v1
     const baseUrl = 'https://api.ticktick.com/open/v1';
 
@@ -16,7 +23,7 @@ export async function createTickTickTask(task: TickTickTask, accessToken: string
             'Authorization': `Bearer ${accessToken}`,
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify(task)
+        body: JSON.stringify({ ...task, title })
     });
 
     if (!response.ok) {
