@@ -30,7 +30,6 @@ export const MatrixRain: React.FC<MatrixRainProps> = ({ className, fontSize = 16
         const green = rootStyle.getPropertyValue('--color-phosphor-green').trim() || '#00ff41';
         const dim = rootStyle.getPropertyValue('--color-phosphor-dim').trim() || '#008f11';
         const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
         let width = 0;
         let height = 0;
@@ -40,6 +39,10 @@ export const MatrixRain: React.FC<MatrixRainProps> = ({ className, fontSize = 16
             const rect = canvas.getBoundingClientRect();
             width = rect.width;
             height = rect.height;
+            // Read dpr per resize, not once at mount - it changes with browser
+            // zoom or a move to a different-density monitor, and a stale value
+            // leaves the backing store mis-scaled against the CSS box.
+            const dpr = Math.min(window.devicePixelRatio || 1, 2);
             // Back the canvas at device resolution so glyphs stay crisp on hi-dpi.
             canvas.width = Math.max(1, Math.floor(width * dpr));
             canvas.height = Math.max(1, Math.floor(height * dpr));
