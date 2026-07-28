@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CRTOverlay } from './CRTOverlay';
+import { MatrixRain } from './MatrixRain';
 import { StartScreen } from './StartScreen';
 import { Wavelength } from './Wavelength';
 import { ReviewScreen, type ReviewSubmitOptions } from './ReviewScreen';
@@ -189,10 +190,15 @@ export const VoiceTasker: React.FC = () => {
                 );
             case 'PROCESSING':
                 return (
-                    <div className="flex flex-col items-center justify-center h-full p-6 text-center">
-                        <h2 className="don-panic glow-text text-3xl mb-8 animate-pulse">PROCESSING...</h2>
-                        <div className="glow-text text-sm opacity-50 uppercase max-w-xs">
-                            Calculating probability of success... Consultating the manual...
+                    <div className="relative flex flex-col items-center justify-center h-full p-6 text-center overflow-hidden">
+                        {/* Matrix rain as a transient background - mounts only for
+                            this state, so it never touches the capture/review flow. */}
+                        <MatrixRain />
+                        <div className="relative z-10">
+                            <h2 className="don-panic glow-text text-3xl mb-8 animate-pulse">PROCESSING...</h2>
+                            <div className="glow-text text-sm opacity-50 uppercase max-w-xs">
+                                Calculating probability of success... Consultating the manual...
+                            </div>
                         </div>
                     </div>
                 );
