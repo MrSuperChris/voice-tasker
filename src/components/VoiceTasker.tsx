@@ -146,6 +146,10 @@ export const VoiceTasker: React.FC = () => {
                 }, settings.tickTickToken);
             }
             setIsSuccess(true);
+            // Clear the shared draft so returning to TEXT_ENTRY (or REVIEW)
+            // starts empty instead of prefilled with the task just created.
+            // The "Don't" path already does this; the "Do" path did not.
+            setTranspiredText('');
             sounds.stopProcessing();
             sounds.playSuccess();
             navigateTo('RESULT');
