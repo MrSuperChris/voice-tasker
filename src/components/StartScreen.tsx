@@ -1,6 +1,12 @@
 import React from 'react';
-import { Plus, Keyboard } from 'lucide-react';
+import { Plus, Keyboard, LayoutDashboard } from 'lucide-react';
 import { motion } from 'framer-motion';
+
+// Bridge is the live console for the Claude Queue board, deployed to GitHub Pages at the
+// URL below — same origin as Babel (mrsuperchris.github.io), different path. Hardcoded:
+// Babel is a deployed static PWA that cannot read SleeperService/config.json, and config
+// holds only `babel_url` today, not a bridge_url, so there is no canonical key to defer to.
+const BRIDGE_URL = 'https://mrsuperchris.github.io/bridge/';
 
 interface StartScreenProps {
     onStart: () => void;
@@ -50,6 +56,18 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, onOpenSetting
                     >
                         ⚒️
                     </button>
+                    {/* Open Bridge (the Claude Queue console) in a new tab. A secondary
+                        affordance in the footer, deliberately kept out of the record path —
+                        opening in a new tab leaves Babel's capture flow untouched to return to. */}
+                    <a
+                        href={BRIDGE_URL}
+                        target="_blank"
+                        rel="noopener"
+                        className="p-4 border border-[var(--color-phosphor-dim)] rounded opacity-30 hover:opacity-100 transition-opacity flex items-center justify-center min-w-[60px]"
+                        title="Open Bridge console"
+                    >
+                        <LayoutDashboard size={24} className="text-[var(--color-phosphor-green)]" />
+                    </a>
                 </div>
             </div>
         </div>
