@@ -37,13 +37,15 @@ export class AudioRecorder {
                 return;
             }
 
-            this.mediaRecorder.onstop = () => {
-                const mimeType = this.mediaRecorder?.mimeType || 'audio/webm';
+            const recorder = this.mediaRecorder;
+
+            const finish = () => {
+                const mimeType = recorder.mimeType || 'audio/webm';
                 const audioBlob = new Blob(this.audioChunks, { type: mimeType });
                 resolve(audioBlob);
 
                 // Stop all tracks to release the microphone
-                this.mediaRecorder?.stream.getTracks().forEach(track => track.stop());
+                recorder.stream.getTracks().forEach(track => track.stop());
 
                 // Cleanup Web Audio API
                 this.source?.disconnect();
@@ -52,7 +54,18 @@ export class AudioRecorder {
                 }
             };
 
-            this.mediaRecorder.stop();
+            // If the mic track ended mid-recording (headset disconnect, another app
+            // grabbed the mic, iOS backgrounding), MediaRecorder stops itself: its stop
+            // event has already fired, so assigning onstop now would never run and the
+            // promise would hang forever (PROCESSING, no buttons). Build the blob from
+            // the chunks we captured and resolve immediately.
+            if (recorder.state === 'inactive') {
+                finish();
+                return;
+            }
+
+            recorder.onstop = finish;
+            recorder.stop();
         });
     }
 }
