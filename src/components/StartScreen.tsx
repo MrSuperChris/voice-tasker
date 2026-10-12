@@ -12,9 +12,14 @@ interface StartScreenProps {
     onStart: () => void;
     onOpenSettings: () => void;
     onTextEntry: () => void;
+    // A recording was left behind by a failed/interrupted transcription; offer to
+    // transcribe it (or throw it away) rather than silently losing the spoken thought.
+    savedRecording?: boolean;
+    onTranscribeSaved?: () => void;
+    onDiscardSaved?: () => void;
 }
 
-export const StartScreen: React.FC<StartScreenProps> = ({ onStart, onOpenSettings, onTextEntry }) => {
+export const StartScreen: React.FC<StartScreenProps> = ({ onStart, onOpenSettings, onTextEntry, savedRecording, onTranscribeSaved, onDiscardSaved }) => {
     return (
         <div className="h-full w-full flex flex-col items-center p-8 box-border relative overflow-hidden bg-black">
             {/* Header */}
@@ -37,6 +42,27 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onStart, onOpenSetting
 
             {/* Footer */}
             <div className="w-full flex flex-col items-center gap-6 mb-8 mt-auto">
+                {savedRecording && (
+                    <div className="w-full max-w-md border border-[var(--color-phosphor-orange)] rounded p-3 text-center">
+                        <p className="glow-text text-xs text-[var(--color-phosphor-orange)] uppercase tracking-[0.2em] mb-3">
+                            Unsent recording saved
+                        </p>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={onTranscribeSaved}
+                                className="flex-1 border-2 border-[var(--color-phosphor-green)] text-[var(--color-phosphor-green)] py-3 text-[11px] font-bold uppercase tracking-wide active:bg-[var(--color-phosphor-green)] active:text-black"
+                            >
+                                TRANSCRIBE SAVED RECORDING
+                            </button>
+                            <button
+                                onClick={onDiscardSaved}
+                                className="border-2 border-[var(--color-phosphor-red)] text-[var(--color-phosphor-red)] py-3 px-4 text-[11px] font-bold uppercase tracking-wide active:bg-[var(--color-phosphor-red)] active:text-black"
+                            >
+                                DISCARD
+                            </button>
+                        </div>
+                    </div>
+                )}
                 <p className="don-panic glow-text text-2xl text-[var(--color-phosphor-orange)] text-center tracking-[0.2em]">
                     DON'T PANIC
                 </p>

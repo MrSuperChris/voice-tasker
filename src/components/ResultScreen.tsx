@@ -7,9 +7,13 @@ interface ResultScreenProps {
     success: boolean;
     error?: string | null;
     onReset: () => void;
+    // When present, a failed transcription still has its audio saved: offer RETRY.
+    onRetry?: () => void;
+    // When present, an extra reassurance line (e.g. "your text is saved").
+    note?: string | null;
 }
 
-export const ResultScreen: React.FC<ResultScreenProps> = ({ success, error, onReset }) => {
+export const ResultScreen: React.FC<ResultScreenProps> = ({ success, error, onReset, onRetry, note }) => {
     useEffect(() => {
         if (success) {
             confetti({
@@ -48,6 +52,21 @@ export const ResultScreen: React.FC<ResultScreenProps> = ({ success, error, onRe
             <p className="glow-text text-sm opacity-60 uppercase tracking-widest">
                 {success ? 'Probability of success: 100%' : (error || 'Consult the manual (p. 42)')}
             </p>
+
+            {note && (
+                <p className="glow-text text-xs text-[var(--color-phosphor-orange)] opacity-80 uppercase tracking-widest mt-4 max-w-xs">
+                    {note}
+                </p>
+            )}
+
+            {onRetry && (
+                <button
+                    onClick={(e) => { e.stopPropagation(); onRetry(); }}
+                    className="mt-10 border-4 border-[var(--color-phosphor-green)] text-[var(--color-phosphor-green)] py-4 px-10 text-xl font-bold uppercase transition-all active:bg-[var(--color-phosphor-green)] active:text-black"
+                >
+                    RETRY
+                </button>
+            )}
 
             <div className="mt-20 text-[10px] opacity-30 animate-pulse">
                 TAP SCREEN TO CONTINUE
