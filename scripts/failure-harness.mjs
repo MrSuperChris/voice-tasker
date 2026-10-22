@@ -160,7 +160,9 @@ await run('C2 ticktick network drop', async () => {
 });
 await run('C3 ticktick 200 empty body', async () => {
   const { ctx, page, log } = await setup({ groq: ok(), tick: r => r.fulfill({ status: 200, body: '' }) });
-  await toReview(page); await doIt(page); await page.waitForSelector('text=TASK ADDED');
+  // Post-fix: a 2xx with no task body must NOT flash TASK ADDED; it fails honestly
+  // and the draft stays reachable. (Before the fix this waited for TASK ADDED.)
+  await toReview(page); await doIt(page); await page.waitForSelector('text=ENTRY FAILED');
   const shown = await screenText(page);
   const storageAfterSuccess = await storage(page);
   await page.click('text=TAP SCREEN TO CONTINUE');
