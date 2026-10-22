@@ -78,14 +78,31 @@ async function run(name, fn) {
   catch (e) { results.push({ name, harnessError: String(e).slice(0, 300) }); }
 }
 
-// A. network drop during Groq upload
-await run('A1 groq network drop', async () => {
+// Re-route Groq to a logged success (used by the RETRY / recover cases). Keeps
+// counting bytes on log.groq so a retried call can be byte-compared to the first.
+async function regroqOk(ctx, log, text) {
+  await ctx.unroute('**/*').catch(() => {});
+  await ctx.route('**/*', route => {
+    const url = route.request().url();
+    if (url.startsWith(`http://localhost:${PORT}/`)) return route.continue();
+    if (url.includes('api.groq.com')) { log.groq.push({ bytes: (route.request().postDataBuffer() || []).length }); return ok(text)(route); }
+    if (url.includes('api.ticktick.com')) return tickOk(route);
+    return route.abort();
+  });
+}
+
+// A. network drop during Groq upload — then RETRY (card: keep the recording).
+await run('A1 groq network drop -> RETRY', async () => {
   const { ctx, page, log } = await setup({ groq: r => r.abort('internetdisconnected'), tick: tickOk });
   await record(page); await stop(page); await page.waitForSelector('text=ENTRY FAILED');
   const shown = await screenText(page);
-  await page.click('text=TAP SCREEN TO CONTINUE');
-  const draft = await textEntryValue(page);
-  const r = { shown, groqCalls: log.groq.length, audioBytesSent: log.groq[0]?.bytes, textEntryAfter: draft, storage: await storage(page) };
+  const firstBytes = log.groq[0]?.bytes;
+  const storageAtFailure = await storage(page);
+  await regroqOk(ctx, log, 'retried transcript');
+  await page.click('text=RETRY');
+  await page.waitForSelector('text=TRANSCRIPTION');
+  const reviewText = await page.locator('textarea').inputValue();
+  const r = { shown, firstBytes, secondBytes: log.groq[1]?.bytes, bytesMatch: firstBytes === log.groq[1]?.bytes, groqCalls: log.groq.length, reviewText, storageAtFailure, storageAfterSuccess: await storage(page) };
   await ctx.close(); return r;
 });
 await run('A2 groq 502 html', async () => {
@@ -99,10 +116,17 @@ await run('A3 groq hangs', async () => {
   const r = { after20s: await screenText(page), buttons: await page.locator('button').count(), groqCalls: log.groq.length }; await ctx.close(); return r;
 });
 // B. Groq 429 / malformed success
-await run('B1 groq 429', async () => {
+await run('B1 groq 429 -> RETRY', async () => {
   const { ctx, page, log } = await setup({ groq: r => r.fulfill({ status: 429, contentType: 'application/json', body: JSON.stringify({ error: { message: 'Rate limit reached for model whisper-large-v3-turbo. Please try again in 7s.', type: 'requests', code: 'rate_limit_exceeded' } }) }), tick: tickOk });
   await record(page); await stop(page); await page.waitForSelector('text=ENTRY FAILED');
-  const r = { shown: await screenText(page), groqCalls: log.groq.length }; await ctx.close(); return r;
+  const shown = await screenText(page);
+  const firstBytes = log.groq[0]?.bytes;
+  await regroqOk(ctx, log, 'second-try transcript');
+  await page.click('text=RETRY');
+  await page.waitForSelector('text=TRANSCRIPTION');
+  const reviewText = await page.locator('textarea').inputValue();
+  const r = { shown, firstBytes, secondBytes: log.groq[1]?.bytes, bytesMatch: firstBytes === log.groq[1]?.bytes, groqCalls: log.groq.length, reviewText, storageAfterSuccess: await storage(page) };
+  await ctx.close(); return r;
 });
 await run('B2 groq 200 no text field', async () => {
   const { ctx, page, log } = await setup({ groq: r => r.fulfill({ status: 200, contentType: 'application/json', body: '{}' }), tick: tickOk });
@@ -138,8 +162,9 @@ await run('C3 ticktick 200 empty body', async () => {
   const { ctx, page, log } = await setup({ groq: ok(), tick: r => r.fulfill({ status: 200, body: '' }) });
   await toReview(page); await doIt(page); await page.waitForSelector('text=TASK ADDED');
   const shown = await screenText(page);
+  const storageAfterSuccess = await storage(page);
   await page.click('text=TAP SCREEN TO CONTINUE');
-  const r = { shown, tickCalls: log.tick.length, textEntryAfter: await textEntryValue(page) }; await ctx.close(); return r;
+  const r = { shown, tickCalls: log.tick.length, textEntryAfter: await textEntryValue(page), storageAfterSuccess }; await ctx.close(); return r;
 });
 await run('C4 ticktick hangs', async () => {
   const { ctx, page, log } = await setup({ groq: ok(), tick: hang });
@@ -185,11 +210,19 @@ await run('E1 reload while recording', async () => {
   const r = { beforeunloadPrompt: dialog, screen: await screenText(page), groqCalls: log.groq.length, textEntry: await textEntryValue(page), storage: await storage(page) };
   await ctx.close(); return r;
 });
-await run('E2 reload while transcribing', async () => {
+await run('E2 reload while transcribing -> offer to transcribe saved', async () => {
   const { ctx, page, log } = await setup({ groq: hang, tick: tickOk });
+  page.on('dialog', d => d.accept());   // the beforeunload guard fires during PROCESSING
   await record(page); await stop(page); await sleep(1000);
   await page.reload(); await page.waitForSelector('text=DON\'T PANIC');
-  const r = { screen: await screenText(page), textEntry: await textEntryValue(page) }; await ctx.close(); return r;
+  const offered = await page.locator('text=TRANSCRIBE SAVED RECORDING').count();
+  const screen = await screenText(page);
+  await regroqOk(ctx, log, 'recovered transcript');
+  await page.click('text=TRANSCRIBE SAVED RECORDING');
+  await page.waitForSelector('text=TRANSCRIPTION');
+  const reviewText = await page.locator('textarea').inputValue();
+  const r = { offered, screen, reviewText, groqCalls: log.groq.length, storageAfterSuccess: await storage(page) };
+  await ctx.close(); return r;
 });
 await run('E3 reload on review (edited)', async () => {
   const { ctx, page, log } = await setup({ groq: ok('original transcript'), tick: tickOk });
@@ -199,6 +232,7 @@ await run('E3 reload on review (edited)', async () => {
 });
 await run('E4 reload during ticktick submit', async () => {
   const { ctx, page, log } = await setup({ groq: ok('submit me'), tick: hang });
+  page.on('dialog', d => d.accept());   // beforeunload guard fires during the submit (PROCESSING)
   await toReview(page); await doIt(page); await sleep(800);
   await page.reload(); await page.waitForSelector('text=DON\'T PANIC');
   const r = { tickCallsStarted: log.tick.length, textEntry: await textEntryValue(page) }; await ctx.close(); return r;

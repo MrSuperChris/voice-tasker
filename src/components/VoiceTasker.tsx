@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CRTOverlay } from './CRTOverlay';
 import { MatrixRain } from './MatrixRain';
@@ -11,6 +11,7 @@ import { transcribeAudio } from '../lib/groq';
 import { uploadObsidianNote } from '../lib/dropbox';
 import { createTickTickTask } from '../lib/ticktick';
 import { sounds } from '../lib/sounds';
+import { saveRecording, loadRecording, clearRecording } from '../lib/recordingStore';
 
 const recorder = new AudioRecorder();
 
@@ -35,11 +36,27 @@ const DEFAULT_SETTINGS: AppSettings = {
 
 type ScreenState = 'INITIAL' | 'RECORDING' | 'PROCESSING' | 'REVIEW' | 'RESULT' | 'SETTINGS' | 'TEXT_ENTRY';
 
+// Card: keep the typed/transcribed text across failures and reloads. The draft is
+// mirrored here on every change and restored on load, so a reload on REVIEW or during
+// a submit no longer loses what was captured. Cleared only on a successful submit or
+// an explicit DON'T.
+const DRAFT_KEY = 'voice-tasker-draft';
+
 export const VoiceTasker: React.FC = () => {
     const [screen, setScreen] = useState<ScreenState>('INITIAL');
     const [transpiredText, setTranspiredText] = useState('');
     const [isSuccess, setIsSuccess] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    // Card: keep the recording until it is transcribed, with RETRY.
+    // retryAvailable gates the RETRY button on the failure screen (set only when a
+    // transcription attempt failed and the audio is still saved). hasSavedRecording
+    // gates the start-screen offer to transcribe a recording left over from a crash
+    // or reload during PROCESSING.
+    const [retryAvailable, setRetryAvailable] = useState(false);
+    const [hasSavedRecording, setHasSavedRecording] = useState(false);
+    // An extra line on the failure screen telling the user their text was kept and how
+    // to get back to it (set on a submit failure where the draft is preserved).
+    const [resultNote, setResultNote] = useState<string | null>(null);
     const [settings, setSettings] = useState<AppSettings>(() => {
         const saved = localStorage.getItem('voice-tasker-settings');
         // Merge over defaults so settings saved before a new field existed
@@ -52,12 +69,62 @@ export const VoiceTasker: React.FC = () => {
         localStorage.setItem('voice-tasker-settings', JSON.stringify(newSettings));
     };
 
+    // On load, if a recording was left behind (reload/crash during PROCESSING, or a
+    // transcription that never succeeded), offer to transcribe it from the start screen.
+    useEffect(() => {
+        loadRecording().then(blob => { if (blob) setHasSavedRecording(true); });
+    }, []);
+
+    // On load, restore a draft left behind by a reload on REVIEW or during a submit.
+    // It stays on the start screen; opening TEXT_ENTRY (keyboard) shows the text.
+    useEffect(() => {
+        const saved = localStorage.getItem(DRAFT_KEY);
+        if (saved) setTranspiredText(saved);
+    }, []);
+
+    // Warn before a reload/close throws away an in-flight capture (recording or
+    // transcribing). Only while those screens are up, so it never nags elsewhere.
+    useEffect(() => {
+        if (screen !== 'RECORDING' && screen !== 'PROCESSING') return;
+        const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+        window.addEventListener('beforeunload', handler);
+        return () => window.removeEventListener('beforeunload', handler);
+    }, [screen]);
+
+    // Mirror every edit to localStorage so the draft survives a reload.
+    const updateDraft = (text: string) => {
+        setTranspiredText(text);
+        if (text) localStorage.setItem(DRAFT_KEY, text);
+        else localStorage.removeItem(DRAFT_KEY);
+    };
+
+    // Clear the draft (successful submit, or DON'T).
+    const clearDraft = () => {
+        setTranspiredText('');
+        localStorage.removeItem(DRAFT_KEY);
+    };
+
+    // A new transcript is appended to any unsubmitted draft rather than replacing it,
+    // so a thought captured before a failed submit is not lost by recording another
+    // (failure-paths case C1b). Normal captures start from an empty draft (cleared on
+    // success/DON'T), so this only ever preserves text after a failure.
+    const appendTranscript = (text: string) => {
+        setTranspiredText(prev => {
+            const combined = prev.trim() ? `${prev}\n${text}` : text;
+            localStorage.setItem(DRAFT_KEY, combined);
+            return combined;
+        });
+    };
+
     const navigateTo = (nextScreen: ScreenState) => {
         setScreen(nextScreen);
     };
 
     const handleStartRecording = async () => {
         try {
+            // A fresh recording supersedes any leftover one; hide the offer now, and
+            // handleStopRecording will overwrite the saved blob before transcribing.
+            setHasSavedRecording(false);
             await recorder.start();
             sounds.playStartRecording();
             navigateTo('RECORDING');
@@ -67,20 +134,27 @@ export const VoiceTasker: React.FC = () => {
         }
     };
 
-    const handleStopRecording = async () => {
-        sounds.playStopRecording();
+    // Transcribe a blob and route on the outcome. Shared by a fresh stop, the RETRY
+    // button, and the start-screen "transcribe saved recording" offer. The saved audio
+    // is cleared the moment a real response comes back (whether or not the words are
+    // usable), so a success leaves nothing behind; a transport/API failure keeps it so
+    // RETRY has something to re-send.
+    const attemptTranscription = async (audioBlob: Blob) => {
         navigateTo('PROCESSING');
         sounds.startProcessing();
         try {
-            const audioBlob = await recorder.stop();
             if (!settings.openaiKey) {
                 throw new Error('Groq API Key missing in settings');
             }
             const text = await transcribeAudio(audioBlob, settings.openaiKey);
+            // A response came back — the audio has served its purpose.
+            await clearRecording();
+            setHasSavedRecording(false);
             if (!text.trim()) {
                 throw new Error('Nothing was captured. Try again.');
             }
-            setTranspiredText(text);
+            appendTranscript(text);
+            setResultNote(null);
             sounds.stopProcessing();
             navigateTo('REVIEW');
         } catch (err: any) {
@@ -88,8 +162,59 @@ export const VoiceTasker: React.FC = () => {
             sounds.playError();
             setError(err.message || 'Transcription failed');
             setIsSuccess(false);
+            setResultNote(null);
+            // Offer RETRY only if the audio is still saved (a transport/API failure,
+            // not an empty transcript we just cleared).
+            const stillSaved = await loadRecording();
+            setRetryAvailable(!!stillSaved);
             navigateTo('RESULT');
         }
+    };
+
+    const handleStopRecording = async () => {
+        sounds.playStopRecording();
+        navigateTo('PROCESSING');
+        sounds.startProcessing();
+        let audioBlob: Blob;
+        try {
+            audioBlob = await recorder.stop();
+        } catch (err: any) {
+            sounds.stopProcessing();
+            sounds.playError();
+            setError(err.message || 'Recording failed');
+            setIsSuccess(false);
+            setRetryAvailable(false);
+            navigateTo('RESULT');
+            return;
+        }
+        // Persist BEFORE calling Groq, so a transcription failure or a reload during
+        // PROCESSING can still recover the spoken thought.
+        try { await saveRecording(audioBlob); } catch { /* best effort */ }
+        await attemptTranscription(audioBlob);
+    };
+
+    const handleRetryTranscription = async () => {
+        const blob = await loadRecording();
+        setRetryAvailable(false);
+        if (!blob) {
+            // Nothing to retry (shouldn't happen when RETRY is shown).
+            setError(null);
+            navigateTo('INITIAL');
+            return;
+        }
+        await attemptTranscription(blob);
+    };
+
+    const handleTranscribeSaved = async () => {
+        const blob = await loadRecording();
+        setHasSavedRecording(false);
+        if (!blob) return;
+        await attemptTranscription(blob);
+    };
+
+    const handleDiscardSaved = async () => {
+        await clearRecording();
+        setHasSavedRecording(false);
     };
 
     const computeDueDate = (dateOption?: string): string | undefined => {
@@ -146,10 +271,11 @@ export const VoiceTasker: React.FC = () => {
                 }, settings.tickTickToken);
             }
             setIsSuccess(true);
+            setResultNote(null);
             // Clear the shared draft so returning to TEXT_ENTRY (or REVIEW)
             // starts empty instead of prefilled with the task just created.
             // The "Don't" path already does this; the "Do" path did not.
-            setTranspiredText('');
+            clearDraft();
             sounds.stopProcessing();
             sounds.playSuccess();
             navigateTo('RESULT');
@@ -158,6 +284,8 @@ export const VoiceTasker: React.FC = () => {
             sounds.playError();
             setError(err.message || 'Task creation failed');
             setIsSuccess(false);
+            // The text is still kept (draft preserved). Tell the user where it is.
+            setResultNote('YOUR TEXT IS SAVED — TAP THE KEYBOARD ON THE START SCREEN TO FINISH IT');
             navigateTo('RESULT');
         } finally {
             isSubmittingRef.current = false;
@@ -172,6 +300,9 @@ export const VoiceTasker: React.FC = () => {
                         onStart={handleStartRecording}
                         onOpenSettings={() => navigateTo('SETTINGS')}
                         onTextEntry={() => navigateTo('TEXT_ENTRY')}
+                        savedRecording={hasSavedRecording}
+                        onTranscribeSaved={handleTranscribeSaved}
+                        onDiscardSaved={handleDiscardSaved}
                     />
                 );
             case 'RECORDING':
@@ -210,10 +341,10 @@ export const VoiceTasker: React.FC = () => {
                 return (
                     <ReviewScreen
                         text={transpiredText}
-                        onTextChange={setTranspiredText}
+                        onTextChange={updateDraft}
                         onDo={handleCreateTask}
                         onDont={() => {
-                            setTranspiredText('');
+                            clearDraft();
                             navigateTo('INITIAL');
                         }}
                     />
@@ -223,8 +354,12 @@ export const VoiceTasker: React.FC = () => {
                     <ResultScreen
                         success={isSuccess}
                         error={error}
+                        note={resultNote}
+                        onRetry={retryAvailable ? handleRetryTranscription : undefined}
                         onReset={() => {
                             setError(null);
+                            setRetryAvailable(false);
+                            setResultNote(null);
                             navigateTo('INITIAL');
                         }}
                     />
@@ -235,10 +370,10 @@ export const VoiceTasker: React.FC = () => {
                         title="TYPE TASK"
                         autoFocus
                         text={transpiredText}
-                        onTextChange={setTranspiredText}
+                        onTextChange={updateDraft}
                         onDo={handleCreateTask}
                         onDont={() => {
-                            setTranspiredText('');
+                            clearDraft();
                             navigateTo('INITIAL');
                         }}
                     />
