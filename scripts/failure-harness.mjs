@@ -71,6 +71,20 @@ const toReview = async page => { await record(page); await stop(page); await pag
 const doIt = page => page.locator('button', { hasText: /^DO$/ }).click();
 const textEntryValue = async page => { await page.click('[title="Type a task"]'); await page.waitForSelector('text=TYPE TASK'); return page.locator('textarea').inputValue(); };
 const storage = page => page.evaluate(async () => ({ ls: Object.keys(localStorage), idb: (await indexedDB.databases?.() || []).map(d => d.name) }));
+// The byte size of the single saved recording in IndexedDB, or null if none. Used
+// to prove WHICH recording is still in the store (two recordings of different
+// lengths have different sizes), so a clobber is visible as a changed size.
+const savedBlobSize = page => page.evaluate(() => new Promise(resolve => {
+  const open = indexedDB.open('voice-tasker-recording', 1);
+  open.onerror = () => resolve(null);
+  open.onsuccess = () => {
+    const db = open.result;
+    if (!db.objectStoreNames.contains('pending')) { db.close(); return resolve(null); }
+    const req = db.transaction('pending', 'readonly').objectStore('pending').get('current');
+    req.onsuccess = () => { const b = req.result; db.close(); resolve(b ? b.size : null); };
+    req.onerror = () => { db.close(); resolve(null); };
+  };
+}));
 
 async function run(name, fn) {
   if (ONLY && !name.startsWith(ONLY)) return;
@@ -238,6 +252,34 @@ await run('E4 reload during ticktick submit', async () => {
   await toReview(page); await doIt(page); await sleep(800);
   await page.reload(); await page.waitForSelector('text=DON\'T PANIC');
   const r = { tickCallsStarted: log.tick.length, textEntry: await textEntryValue(page) }; await ctx.close(); return r;
+});
+// G. a new recording must not silently destroy an unsent saved one (card:
+// "a new recording must never silently replace an unsent save"). Make a saved
+// recording the reload-during-PROCESSING way, then tap record again. With the fix
+// the replace-confirm is declined and the first recording stays in the store; break
+// the fix (remove the confirm in handleStartRecording) and the second recording
+// overwrites it — finalSize stops matching firstSize, so `preserved` flips to false.
+await run('G1 new recording must not clobber an unsent saved one', async () => {
+  const { ctx, page, log } = await setup({ groq: hang, tick: tickOk });
+  // Allow the reload (accept its beforeunload) but DECLINE the replace confirm.
+  page.on('dialog', d => d.type() === 'confirm' ? d.dismiss() : d.accept());
+  // 1. leave an unsent recording saved, with the start-screen offer showing.
+  await record(page, 1500); await stop(page); await sleep(1000);
+  await page.reload(); await page.waitForSelector('text=DON\'T PANIC');
+  const offered = await page.locator('text=TRANSCRIBE SAVED RECORDING').count();
+  const firstSize = await savedBlobSize(page);
+  // 2. tap the big record button — the loss path. A longer take, so a clobber
+  //    would change the saved size unmistakably.
+  await page.locator('button').first().click();
+  await sleep(300);
+  const startedRecording = await page.locator('text=STOP RECORDING').count();
+  if (startedRecording) { await sleep(3500); await stop(page); await sleep(1200); }
+  // 3. is the FIRST recording still the one in the store?
+  const finalSize = await savedBlobSize(page);
+  const stillOffered = await page.locator('text=TRANSCRIBE SAVED RECORDING').count();
+  const r = { offered, firstSize, finalSize, startedRecording,
+    preserved: firstSize != null && finalSize === firstSize, stillOffered };
+  await ctx.close(); return r;
 });
 // F. empty / garbage transcript
 for (const [n, t] of [['F1 empty', ''], ['F2 whitespace', '   \n '], ['F3 hallucination', 'Thank you.']]) {

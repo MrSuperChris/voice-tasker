@@ -121,9 +121,27 @@ export const VoiceTasker: React.FC = () => {
     };
 
     const handleStartRecording = async () => {
+        // A fresh recording's stop overwrites the single saved-recording slot
+        // (recordingStore KEY), so if an UNSENT one is still saved — a prior capture
+        // that never transcribed — starting a new one would destroy it silently. Don't:
+        // make the choice explicit. Check the store itself, not just hasSavedRecording,
+        // because the flag can be stale (e.g. after RESET from a failed transcription),
+        // while the blob on disk is the thing actually about to be clobbered.
+        if (hasSavedRecording || (await loadRecording())) {
+            const replace = window.confirm(
+                'An unsent recording is still saved. Starting a new recording will replace it.\n\n' +
+                'OK to replace it, or Cancel to keep it (then transcribe or discard it first).'
+            );
+            if (!replace) {
+                // Surface the saved recording so Cancel leads somewhere, even if the
+                // start-screen offer was not already showing.
+                setHasSavedRecording(true);
+                return;
+            }
+        }
         try {
-            // A fresh recording supersedes any leftover one; hide the offer now, and
-            // handleStopRecording will overwrite the saved blob before transcribing.
+            // The user accepted the replace (or there was nothing saved); hide the
+            // offer now, and handleStopRecording will overwrite the saved blob.
             setHasSavedRecording(false);
             await recorder.start();
             sounds.playStartRecording();
