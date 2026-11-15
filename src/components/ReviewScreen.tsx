@@ -24,7 +24,7 @@ const DATE_OPTIONS: { value: DateOption; label: string }[] = [
     { value: 'Someday', label: 'HEAT DEATH' },
 ];
 
-const TAGS = ['social', 'it', 'home', 'money', 'creative', 'organizing', 'work', 'cooking', 'vacation', 'thinking'];
+const TAGS = ['social', 'it', 'home', 'money', 'creative', 'organizing', 'work', 'cooking', 'vacation', 'thinking', 'claude'];
 
 const MODE_OPTIONS: { value: CaptureMode; label: string }[] = [
     { value: 'TASK', label: 'TASK' },
